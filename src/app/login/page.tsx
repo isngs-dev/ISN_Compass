@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { DemoLoginButtons } from "@/components/auth/demo-login-buttons";
 
 export default async function LoginPage({
   searchParams,
@@ -22,7 +21,7 @@ export default async function LoginPage({
             <Compass className="h-6 w-6" />
           </div>
           <CardTitle className="text-xl">iSN Compass</CardTitle>
-          <CardDescription>Strategy → Accountability → Execution</CardDescription>
+          <CardDescription>Admin sign in</CardDescription>
         </CardHeader>
         <CardContent>
           <form action={signInAction} data-login-form className="flex flex-col gap-4">
@@ -44,7 +43,6 @@ export default async function LoginPage({
               Sign in
             </Button>
           </form>
-          <DemoLoginButtons />
         </CardContent>
       </Card>
     </div>

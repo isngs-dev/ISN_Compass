@@ -2,70 +2,72 @@
 
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/server/auth/session";
-import { createTask, updateTaskStatus, addTaskUpdate, delegateTask, setTaskDueDate } from "@/server/services/tasks";
-import type { PriorityLevel, TaskStatus } from "@/types/domain";
+import {
+  createTask,
+  updateTask,
+  reassignTask,
+  setTaskStatus,
+  markTaskCompleted,
+  reopenTask,
+} from "@/server/services/tasks";
+import type { TaskPriority, TaskStatus } from "@/types/database";
 
-export async function createTaskAction(
-  initiativeId: string,
-  formData: FormData,
-  opts?: { milestoneId?: string; parentTaskId?: string; redirectPath?: string }
-) {
-  const user = await requireUser();
-  const task = await createTask({
-    organization_id: user.profile.organization_id,
-    title: String(formData.get("title")),
-    description: String(formData.get("description") ?? "") || undefined,
+export async function createTaskAction(initiativeId: string, formData: FormData) {
+  await requireUser();
+  await createTask({
     initiative_id: initiativeId,
-    milestone_id: opts?.milestoneId ?? (String(formData.get("milestone_id") ?? "") || undefined),
-    parent_task_id: opts?.parentTaskId,
-    weight: formData.get("weight") ? Number(formData.get("weight")) : undefined,
+    name: String(formData.get("name")),
+    description: String(formData.get("description") ?? "") || undefined,
+    assigned_to: String(formData.get("assigned_to") ?? "") || undefined,
+    assignment_note: String(formData.get("assignment_note") ?? "") || undefined,
+    priority: (String(formData.get("priority")) || "medium") as TaskPriority,
+    start_date: String(formData.get("start_date") ?? "") || undefined,
     due_date: String(formData.get("due_date") ?? "") || undefined,
-    priority: String(formData.get("priority")) as PriorityLevel,
-    approval_required: formData.get("approval_required") === "on",
-    created_by: user.id,
-    responsible_id: String(formData.get("responsible_id") ?? "") || undefined,
   });
-  revalidatePath(`/leadership/initiatives/${initiativeId}`);
-  revalidatePath("/team/my-work");
-  revalidatePath("/team/tasks");
-  return task;
+  revalidatePath(`/initiatives/${initiativeId}`);
+  revalidatePath("/dashboard");
 }
 
-export async function updateTaskStatusAction(taskId: string, status: TaskStatus, percentageComplete?: number) {
+export async function updateTaskAction(taskId: string, initiativeId: string, formData: FormData) {
   await requireUser();
-  await updateTaskStatus(taskId, status, percentageComplete);
-  revalidatePath(`/team/tasks/${taskId}`);
-  revalidatePath("/team/my-work");
-  revalidatePath("/team/tasks");
-}
-
-export async function addTaskUpdateAction(taskId: string, formData: FormData) {
-  const user = await requireUser();
-  await addTaskUpdate({
-    task_id: taskId,
-    author_id: user.id,
-    note: String(formData.get("note")),
-    percentage_complete: formData.get("percentage_complete") ? Number(formData.get("percentage_complete")) : undefined,
+  await updateTask(taskId, {
+    name: String(formData.get("name")),
+    description: String(formData.get("description") ?? "") || undefined,
+    priority: (String(formData.get("priority")) || undefined) as TaskPriority | undefined,
+    start_date: String(formData.get("start_date") ?? "") || null,
+    due_date: String(formData.get("due_date") ?? "") || null,
   });
-  revalidatePath(`/team/tasks/${taskId}`);
+  revalidatePath(`/initiatives/${initiativeId}`);
 }
 
-export async function delegateTaskAction(taskId: string, formData: FormData) {
-  const user = await requireUser();
-  await delegateTask({
-    task_id: taskId,
-    delegated_by: user.id,
-    delegated_to: String(formData.get("delegated_to")),
-    delegated_due_date: String(formData.get("delegated_due_date") ?? "") || undefined,
-    instructions: String(formData.get("instructions") ?? "") || undefined,
-  });
-  revalidatePath(`/team/tasks/${taskId}`);
-  revalidatePath("/team/delegated");
-  revalidatePath("/team/my-work");
-}
-
-export async function setTaskDueDateAction(taskId: string, formData: FormData) {
+export async function reassignTaskAction(taskId: string, initiativeId: string, formData: FormData) {
   await requireUser();
-  await setTaskDueDate(taskId, String(formData.get("due_date")), String(formData.get("reason")));
-  revalidatePath(`/team/tasks/${taskId}`);
+  await reassignTask(
+    taskId,
+    String(formData.get("assigned_to")),
+    String(formData.get("assignment_note") ?? "") || undefined
+  );
+  revalidatePath(`/initiatives/${initiativeId}`);
+  revalidatePath("/dashboard");
+}
+
+export async function setTaskStatusAction(taskId: string, initiativeId: string, status: TaskStatus) {
+  await requireUser();
+  await setTaskStatus(taskId, status);
+  revalidatePath(`/initiatives/${initiativeId}`);
+  revalidatePath("/dashboard");
+}
+
+export async function markTaskCompletedAction(taskId: string, initiativeId: string) {
+  await requireUser();
+  await markTaskCompleted(taskId);
+  revalidatePath(`/initiatives/${initiativeId}`);
+  revalidatePath("/dashboard");
+}
+
+export async function reopenTaskAction(taskId: string, initiativeId: string) {
+  await requireUser();
+  await reopenTask(taskId);
+  revalidatePath(`/initiatives/${initiativeId}`);
+  revalidatePath("/dashboard");
 }

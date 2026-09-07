@@ -1,240 +1,267 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
-import { generateCode } from "@/lib/utils/codes";
-import type { PriorityLevel, TaskStatus } from "@/types/domain";
+import { logActivity } from "@/server/services/activity";
+import { sendEmail } from "@/lib/email/resend";
+import { taskAssignedEmail, adminConfirmationNoticeEmail } from "@/lib/email/templates";
+import type { Database, TaskPriority, TaskStatus } from "@/types/database";
 
-const TASK_SELECT = `
-  *,
-  initiative:initiatives(id, name, code),
-  milestone:milestones(id, name),
-  assignments:task_assignments(id, assignment_role, is_active, user:profiles!task_assignments_user_id_fkey(id, full_name, avatar_url)),
-  subtasks:tasks!parent_task_id(id, title, status, percentage_complete),
-  updates:task_updates(id, note, percentage_complete, status_at_update, created_at, author:profiles(id, full_name))
-`;
+const TASK_SELECT = "*, assignee:team_members(id, name, email), initiative:initiatives(id, name)";
+
+type TaskWithRelations = Database["public"]["Tables"]["tasks"]["Row"] & {
+  assignee: { id: string; name: string; email: string } | null;
+  initiative: { id: string; name: string } | null;
+};
 
 export async function getTask(id: string) {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("tasks")
-    .select(TASK_SELECT)
-    .eq("id", id)
-    .order("created_at", { referencedTable: "task_updates", ascending: false })
-    .single();
+  const { data, error } = await supabase.from("tasks").select(TASK_SELECT).eq("id", id).single();
   if (error) throw error;
-  return data;
+  return data as unknown as TaskWithRelations;
 }
 
-export async function listTasksForInitiative(initiativeId: string) {
+export interface TaskFilters {
+  status?: TaskStatus;
+  assignedTo?: string;
+  initiativeId?: string;
+  overdueOnly?: boolean;
+  dueBefore?: string;
+  dueAfter?: string;
+}
+
+export async function listTasks(filters: TaskFilters = {}) {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("tasks")
-    .select(TASK_SELECT)
-    .eq("initiative_id", initiativeId)
-    .is("deleted_at", null);
-  if (error) throw error;
-  return data ?? [];
-}
-
-interface TaskWithInitiative {
-  id: string;
-  title: string;
-  status: TaskStatus;
-  priority: PriorityLevel;
-  due_date: string | null;
-  percentage_complete: number;
-  deleted_at: string | null;
-  initiative: { id: string; name: string; code: string } | null;
-  [key: string]: unknown;
-}
-
-/** "My Work": tasks where I am the responsible person. */
-export async function listMyTasks(userId: string) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("task_assignments")
-    .select("task:tasks(*, initiative:initiatives(id, name, code))")
-    .eq("user_id", userId)
-    .eq("assignment_role", "responsible")
-    .eq("is_active", true);
-  if (error) throw error;
-  const rows = (data ?? []) as unknown as { task: TaskWithInitiative | null }[];
-  return rows.map((r) => r.task).filter((t): t is TaskWithInitiative => !!t && !t.deleted_at);
-}
-
-/** All active tasks I'm assigned to, any role (responsible or contributor). */
-export async function listTasksForUser(userId: string) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("task_assignments")
-    .select("assignment_role, task:tasks(*, initiative:initiatives(id, name, code))")
-    .eq("user_id", userId)
-    .eq("is_active", true);
-  if (error) throw error;
-  const rows = (data ?? []) as unknown as { assignment_role: string; task: TaskWithInitiative | null }[];
-
-  const byTaskId = new Map<string, TaskWithInitiative & { my_role: string }>();
-  for (const row of rows) {
-    if (!row.task || row.task.deleted_at) continue;
-    if (!byTaskId.has(row.task.id)) byTaskId.set(row.task.id, { ...row.task, my_role: row.assignment_role });
+  let query = supabase.from("tasks").select(TASK_SELECT);
+  if (filters.status) query = query.eq("status", filters.status);
+  if (filters.assignedTo) query = query.eq("assigned_to", filters.assignedTo);
+  if (filters.initiativeId) query = query.eq("initiative_id", filters.initiativeId);
+  if (filters.dueBefore) query = query.lte("due_date", filters.dueBefore);
+  if (filters.dueAfter) query = query.gte("due_date", filters.dueAfter);
+  if (filters.overdueOnly) {
+    query = query.lt("due_date", new Date().toISOString().slice(0, 10)).neq("status", "completed");
   }
-  return Array.from(byTaskId.values());
+  const { data, error } = await query.order("due_date", { ascending: true, nullsFirst: false });
+  if (error) throw error;
+  return (data ?? []) as unknown as TaskWithRelations[];
 }
 
-/** Tasks delegated by me (still active). */
-export async function listDelegatedByMe(userId: string) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("task_delegations")
-    .select("*, task:tasks(id, title, status, due_date, code), delegated_to_profile:profiles!task_delegations_delegated_to_fkey(id, full_name)")
-    .eq("delegated_by", userId)
-    .eq("is_active", true)
-    .order("delegated_at", { ascending: false });
-  if (error) throw error;
-  return data ?? [];
-}
-
-export async function getDelegationTree(taskId: string) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("task_delegations")
-    .select(
-      "*, delegated_by_profile:profiles!task_delegations_delegated_by_fkey(id, full_name), delegated_to_profile:profiles!task_delegations_delegated_to_fkey(id, full_name)"
-    )
-    .eq("task_id", taskId)
-    .order("delegated_at");
-  if (error) throw error;
-  return data ?? [];
+async function notifyAssignment(supabase: SupabaseClient<Database>, task: TaskWithRelations) {
+  if (!task.assignee) return;
+  const email = taskAssignedEmail({
+    taskName: task.name,
+    taskDescription: task.description,
+    initiativeName: task.initiative?.name ?? "—",
+    dueDate: task.due_date,
+    priority: task.priority,
+    instructions: task.assignment_note,
+    confirmationToken: task.confirmation_token,
+  });
+  // Best-effort: assigning the task (below, already committed by the caller) must not
+  // be lost just because email isn't configured yet or Resend has a transient failure.
+  try {
+    await sendEmail({ to: task.assignee.email, subject: email.subject, html: email.html });
+  } catch (err) {
+    console.error("Failed to email assignee for task", task.id, err);
+  }
+  await logActivity(supabase, {
+    entity_type: "task",
+    entity_id: task.id,
+    action: "task_assigned",
+    description: `Assigned to ${task.assignee.name}`,
+  });
 }
 
 export interface CreateTaskInput {
-  organization_id: string;
-  title: string;
-  description?: string;
   initiative_id: string;
-  milestone_id?: string;
-  parent_task_id?: string;
-  weight?: number;
+  name: string;
+  description?: string;
+  assigned_to?: string;
+  assignment_note?: string;
+  priority: TaskPriority;
+  start_date?: string;
   due_date?: string;
-  priority: PriorityLevel;
-  visibility?: string;
-  approval_required?: boolean;
-  created_by: string;
-  responsible_id?: string;
-  contributor_ids?: string[];
 }
 
 export async function createTask(input: CreateTaskInput) {
   const supabase = await createClient();
-  const { responsible_id, contributor_ids, ...fields } = input;
-
-  const { data: task, error } = await supabase
-    .from("tasks")
-    .insert({
-      ...fields,
-      code: generateCode("TASK"),
-      status: "not_started",
-      assignment_date: responsible_id ? new Date().toISOString() : null,
-    })
-    .select()
-    .single();
+  // Assigning a task is what puts it "in progress" — the assignee has no login to flip
+  // it themselves; the only status transition they can trigger is the confirm-link.
+  const status: TaskStatus = input.assigned_to ? "in_progress" : "not_started";
+  const { data, error } = await supabase.from("tasks").insert({ ...input, status }).select(TASK_SELECT).single();
   if (error) throw error;
+  const task = data as unknown as TaskWithRelations;
 
-  const assignments: { task_id: string; user_id: string; assignment_role: string; assigned_by: string }[] = [];
-  if (responsible_id) {
-    assignments.push({
-      task_id: task.id,
-      user_id: responsible_id,
-      assignment_role: "responsible",
-      assigned_by: input.created_by,
-    });
-  }
-  for (const uid of contributor_ids ?? []) {
-    assignments.push({ task_id: task.id, user_id: uid, assignment_role: "contributor", assigned_by: input.created_by });
-  }
-  if (assignments.length) {
-    const { error: assignError } = await supabase.from("task_assignments").insert(assignments);
-    if (assignError) throw assignError;
-  }
-
-  await supabase.from("audit_logs").insert({
-    organization_id: input.organization_id,
+  await logActivity(supabase, {
     entity_type: "task",
     entity_id: task.id,
-    action: "created",
-    actor_id: input.created_by,
-    new_value: { title: input.title, responsible_id },
+    action: "task_created",
+    description: `Task "${task.name}" created`,
   });
-
+  if (task.assigned_to) await notifyAssignment(supabase, task);
   return task;
 }
 
-export async function updateTaskStatus(taskId: string, status: TaskStatus, percentageComplete?: number) {
-  const supabase = await createClient();
-  const update: { status: TaskStatus; percentage_complete?: number; completion_date?: string | null } = { status };
-  if (percentageComplete !== undefined) update.percentage_complete = percentageComplete;
-  if (status === "completed") {
-    update.completion_date = new Date().toISOString().slice(0, 10);
-    if (update.percentage_complete === undefined) update.percentage_complete = 100;
+export async function updateTask(
+  id: string,
+  input: {
+    name?: string;
+    description?: string;
+    priority?: TaskPriority;
+    start_date?: string | null;
+    due_date?: string | null;
   }
-  const { error } = await supabase.from("tasks").update(update).eq("id", taskId);
+) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("tasks").update(input).eq("id", id);
   if (error) throw error;
 }
 
-export async function addTaskUpdate(input: {
-  task_id: string;
-  author_id: string;
-  note: string;
-  percentage_complete?: number;
-  status_at_update?: TaskStatus;
-}) {
+/** Assign or reassign — regenerates the confirmation token so a stale email link can't confirm the new run. */
+export async function reassignTask(id: string, assignedTo: string, note?: string) {
   const supabase = await createClient();
-  const { error } = await supabase.from("task_updates").insert(input);
+  const { data, error } = await supabase
+    .from("tasks")
+    .update({
+      assigned_to: assignedTo,
+      assignment_note: note ?? null,
+      confirmation_token: crypto.randomUUID(),
+      confirmed_at: null,
+      completed_at: null,
+      status: "in_progress" satisfies TaskStatus,
+    })
+    .eq("id", id)
+    .select(TASK_SELECT)
+    .single();
   if (error) throw error;
+  const task = data as unknown as TaskWithRelations;
+
+  await logActivity(supabase, {
+    entity_type: "task",
+    entity_id: id,
+    action: "task_reassigned",
+    description: `Reassigned to ${task.assignee?.name ?? "team member"}`,
+  });
+  await notifyAssignment(supabase, task);
+  return task;
 }
 
-export async function delegateTask(input: {
-  task_id: string;
-  delegated_by: string;
-  delegated_to: string;
-  delegated_due_date?: string;
-  instructions?: string;
-  parent_delegation_id?: string;
-}) {
+export async function setTaskStatus(id: string, status: TaskStatus) {
   const supabase = await createClient();
-  const { data: task } = await supabase.from("tasks").select("due_date").eq("id", input.task_id).single();
-
-  const { error: delegationError } = await supabase.from("task_delegations").insert({
-    ...input,
-    original_due_date: task?.due_date ?? null,
+  const { error } = await supabase.from("tasks").update({ status }).eq("id", id);
+  if (error) throw error;
+  await logActivity(supabase, {
+    entity_type: "task",
+    entity_id: id,
+    action: "task_status_changed",
+    description: `Status changed to "${status.replace(/_/g, " ")}"`,
   });
-  if (delegationError) throw delegationError;
-
-  // Execution moves to the delegate as "responsible"; accountability chain is preserved
-  // via task_delegations history (delegated_by is never overwritten).
-  await supabase
-    .from("task_assignments")
-    .update({ is_active: false })
-    .eq("task_id", input.task_id)
-    .eq("assignment_role", "responsible");
-
-  const { error: assignError } = await supabase.from("task_assignments").upsert(
-    {
-      task_id: input.task_id,
-      user_id: input.delegated_to,
-      assignment_role: "responsible",
-      assigned_by: input.delegated_by,
-      is_active: true,
-    },
-    { onConflict: "task_id,user_id,assignment_role" }
-  );
-  if (assignError) throw assignError;
 }
 
-export async function setTaskDueDate(taskId: string, newDueDate: string, reason: string) {
+export async function markTaskCompleted(id: string) {
   const supabase = await createClient();
-  const { error } = await supabase.rpc("set_task_due_date", {
-    p_task_id: taskId,
-    p_new_due_date: newDueDate,
-    p_reason: reason,
+  const { error } = await supabase
+    .from("tasks")
+    .update({ status: "completed" satisfies TaskStatus, completed_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw error;
+  await logActivity(supabase, {
+    entity_type: "task",
+    entity_id: id,
+    action: "task_marked_completed",
+    description: "Admin marked task completed",
   });
+}
+
+/** Admin rejects the confirmation, or reopens a completed task — either way, back to In Progress with a fresh link. */
+export async function reopenTask(id: string) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("tasks")
+    .update({
+      status: "in_progress" satisfies TaskStatus,
+      confirmed_at: null,
+      completed_at: null,
+      confirmation_token: crypto.randomUUID(),
+    })
+    .eq("id", id);
+  if (error) throw error;
+  await logActivity(supabase, {
+    entity_type: "task",
+    entity_id: id,
+    action: "task_reopened",
+    description: "Task reopened",
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Unauthenticated flows (confirm-completion link, reminder cron) — callers
+// pass the service-role client from src/lib/supabase/admin.ts.
+// ---------------------------------------------------------------------------
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Public confirm-link lookup — a malformed/garbage token is "not found," not a server error. */
+export async function getTaskByConfirmationToken(supabase: SupabaseClient<Database>, token: string) {
+  if (!UUID_RE.test(token)) return null;
+  const { data, error } = await supabase.from("tasks").select(TASK_SELECT).eq("confirmation_token", token).maybeSingle();
+  if (error) throw error;
+  return data as unknown as TaskWithRelations | null;
+}
+
+export async function confirmTaskCompletion(supabase: SupabaseClient<Database>, task: TaskWithRelations) {
+  // The employee's confirm-link click completes the task outright — the Admin can
+  // still reopen it (below, reopenTask) if the confirmation turns out to be wrong,
+  // which serves as the after-the-fact "reject" path instead of a pre-completion gate.
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .from("tasks")
+    .update({ status: "completed" satisfies TaskStatus, confirmed_at: now, completed_at: now })
+    .eq("id", task.id);
+  if (error) throw error;
+
+  await logActivity(supabase, {
+    entity_type: "task",
+    entity_id: task.id,
+    action: "completion_confirmation_received",
+    description: `${task.assignee?.name ?? "Team member"} confirmed completion — task marked completed`,
+    actor: task.assignee?.name ?? "Team member",
+  });
+
+  const adminEmail = process.env.ADMIN_EMAIL;
+  if (adminEmail && task.initiative) {
+    const email = adminConfirmationNoticeEmail({
+      taskName: task.name,
+      initiativeName: task.initiative.name,
+      confirmedBy: task.assignee?.name ?? "Team member",
+      initiativeId: task.initiative.id,
+      taskId: task.id,
+    });
+    // Best-effort: the confirmation itself (status + activity log, above) must not be
+    // lost just because email isn't configured yet or Resend has a transient failure.
+    try {
+      await sendEmail({ to: adminEmail, subject: email.subject, html: email.html });
+    } catch (err) {
+      console.error("Failed to email admin about confirmed task", task.id, err);
+    }
+  }
+}
+
+/** Tasks due within `withinDays` (or already overdue) that haven't been reminded about yet today. */
+export async function listTasksNeedingReminder(supabase: SupabaseClient<Database>, withinDays = 2) {
+  const today = new Date().toISOString().slice(0, 10);
+  const horizon = new Date(Date.now() + withinDays * 86400000).toISOString().slice(0, 10);
+  const { data, error } = await supabase
+    .from("tasks")
+    .select(TASK_SELECT)
+    .not("assigned_to", "is", null)
+    .not("due_date", "is", null)
+    .lte("due_date", horizon)
+    .in("status", ["not_started", "in_progress"])
+    .or(`reminder_sent_at.is.null,reminder_sent_at.lt.${today}`);
+  if (error) throw error;
+  return (data ?? []) as unknown as TaskWithRelations[];
+}
+
+export async function markReminderSent(supabase: SupabaseClient<Database>, taskId: string) {
+  const { error } = await supabase.from("tasks").update({ reminder_sent_at: new Date().toISOString() }).eq("id", taskId);
   if (error) throw error;
 }

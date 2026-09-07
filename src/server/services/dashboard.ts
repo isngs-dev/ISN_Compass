@@ -1,109 +1,81 @@
 import { createClient } from "@/lib/supabase/server";
+import type { TaskStatus } from "@/types/database";
 
-export interface CommandCenterKpis {
+export interface DashboardSummary {
+  totalInitiatives: number;
   activeInitiatives: number;
-  onTrack: number;
-  atRisk: number;
-  critical: number;
-  onHold: number;
-  completed: number;
-  openStrategicTasks: number;
-  overdueCommitments: number;
-  blockedInitiatives: number;
-  decisionsRequired: number;
-  openEscalations: number;
-  upcomingMilestones: number;
-  staleInitiatives: number;
+  totalTasks: number;
+  pendingTasks: number;
+  completedTasks: number;
+  overdueTasks: number;
+  awaitingConfirmation: number;
 }
 
-export async function getCommandCenterKpis(orgId: string, noUpdateThresholdDays = 7): Promise<CommandCenterKpis> {
+export async function getDashboardSummary(): Promise<DashboardSummary> {
   const supabase = await createClient();
+  const today = new Date().toISOString().slice(0, 10);
 
-  const [{ data: initiatives }, { data: tasks }, { data: decisions }, { data: escalations }, { data: milestones }] =
-    await Promise.all([
-      supabase.from("initiatives").select("id, status, health, last_update_at").is("deleted_at", null),
-      supabase.from("tasks").select("id, status, due_date, initiative_id").is("deleted_at", null),
-      supabase.from("decisions").select("id, status").eq("status", "proposed"),
-      supabase.from("escalations").select("id, status").in("status", ["open", "acknowledged"]),
-      supabase
-        .from("milestones")
-        .select("id, due_date, status")
-        .is("deleted_at", null)
-        .gte("due_date", new Date().toISOString().slice(0, 10))
-        .lte("due_date", new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10)),
-    ]);
+  const [{ data: initiatives }, { data: tasks }] = await Promise.all([
+    supabase.from("initiatives").select("id, status").eq("is_archived", false),
+    supabase.from("tasks").select("id, status, due_date"),
+  ]);
 
   const inits = initiatives ?? [];
-  const active = inits.filter((i) => i.status === "active");
-  const staleThreshold = Date.now() - noUpdateThresholdDays * 86400000;
-
-  const blockedInitiativeIds = new Set(
-    (tasks ?? []).filter((t) => t.status === "blocked").map((t) => t.initiative_id)
-  );
+  const allTasks = tasks ?? [];
 
   return {
-    activeInitiatives: active.length,
-    onTrack: active.filter((i) => i.health === "green").length,
-    atRisk: active.filter((i) => i.health === "amber").length,
-    critical: active.filter((i) => i.health === "red").length,
-    onHold: inits.filter((i) => i.status === "on_hold").length,
-    completed: inits.filter((i) => i.status === "completed").length,
-    openStrategicTasks: (tasks ?? []).filter((t) => !["completed", "cancelled"].includes(t.status)).length,
-    overdueCommitments: (tasks ?? []).filter(
-      (t) => t.due_date && t.due_date < new Date().toISOString().slice(0, 10) && !["completed", "cancelled"].includes(t.status)
-    ).length,
-    blockedInitiatives: blockedInitiativeIds.size,
-    decisionsRequired: decisions?.length ?? 0,
-    openEscalations: escalations?.length ?? 0,
-    upcomingMilestones: milestones?.length ?? 0,
-    staleInitiatives: inits.filter((i) => !i.last_update_at || new Date(i.last_update_at).getTime() < staleThreshold).length,
+    totalInitiatives: inits.length,
+    activeInitiatives: inits.filter((i) => i.status === "active").length,
+    totalTasks: allTasks.length,
+    pendingTasks: allTasks.filter((t) => t.status !== "completed").length,
+    completedTasks: allTasks.filter((t) => t.status === "completed").length,
+    overdueTasks: allTasks.filter((t) => t.due_date && t.due_date < today && t.status !== "completed").length,
+    awaitingConfirmation: allTasks.filter((t) => t.status === "completion_confirmed").length,
   };
 }
 
-export async function getInitiativesNeedingAttention() {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("initiatives")
-    .select("id, code, name, health, status, percentage_complete, last_update_at, business_vertical:business_verticals(name)")
-    .is("deleted_at", null)
-    .in("status", ["active", "on_hold"])
-    .in("health", ["red", "amber"])
-    .order("health");
-  if (error) throw error;
-  return data ?? [];
+export interface DashboardFilters {
+  period?: "day" | "week" | "month";
+  department_id?: string;
+  initiative_id?: string;
+  assigned_to?: string;
+  status?: TaskStatus;
+  q?: string;
 }
 
-/** Manager view: workload across the team (task count + overdue by user). */
-export async function getTeamWorkload(managerId: string) {
+function periodRange(period: "day" | "week" | "month") {
+  const now = new Date();
+  const start = new Date(now);
+  const end = new Date(now);
+  if (period === "week") {
+    start.setDate(now.getDate() - now.getDay());
+    end.setDate(start.getDate() + 6);
+  } else if (period === "month") {
+    start.setDate(1);
+    end.setMonth(start.getMonth() + 1, 0);
+  }
+  return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
+}
+
+export async function listDashboardTasks(filters: DashboardFilters = {}) {
   const supabase = await createClient();
-  const { data: reports } = await supabase.from("profiles").select("id, full_name").eq("manager_id", managerId);
-  const reportIds = (reports ?? []).map((r) => r.id);
-  if (!reportIds.length) return [];
+  let query = supabase
+    .from("tasks")
+    .select(
+      "*, assignee:team_members(id, name), initiative:initiatives!inner(id, name, department_id, department:departments(id, name))"
+    );
 
-  const { data: assignments } = await supabase
-    .from("task_assignments")
-    .select("user_id, task:tasks(id, status, due_date)")
-    .in("user_id", reportIds)
-    .eq("assignment_role", "responsible")
-    .eq("is_active", true);
+  if (filters.department_id) query = query.eq("initiative.department_id", filters.department_id);
+  if (filters.initiative_id) query = query.eq("initiative_id", filters.initiative_id);
+  if (filters.assigned_to) query = query.eq("assigned_to", filters.assigned_to);
+  if (filters.status) query = query.eq("status", filters.status);
+  if (filters.q) query = query.ilike("name", `%${filters.q}%`);
+  if (filters.period) {
+    const { start, end } = periodRange(filters.period);
+    query = query.gte("due_date", start).lte("due_date", end);
+  }
 
-  const today = new Date().toISOString().slice(0, 10);
-  const typedAssignments = (assignments ?? []) as unknown as {
-    user_id: string;
-    task: { id: string; status: string; due_date: string | null } | null;
-  }[];
-  return (reports ?? []).map((r) => {
-    const userTasks = typedAssignments.filter((a) => a.user_id === r.id).map((a) => a.task).filter(Boolean) as {
-      id: string;
-      status: string;
-      due_date: string | null;
-    }[];
-    return {
-      user: r,
-      total: userTasks.length,
-      open: userTasks.filter((t) => !["completed", "cancelled"].includes(t.status)).length,
-      overdue: userTasks.filter((t) => t.due_date && t.due_date < today && !["completed", "cancelled"].includes(t.status)).length,
-      blocked: userTasks.filter((t) => t.status === "blocked").length,
-    };
-  });
+  const { data, error } = await query.order("due_date", { ascending: true, nullsFirst: false });
+  if (error) throw error;
+  return data ?? [];
 }

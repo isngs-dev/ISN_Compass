@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,6 +32,7 @@ export function FormDialog({
 }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
 
   async function handleSubmit(formData: FormData) {
     startTransition(async () => {
@@ -38,6 +40,11 @@ export function FormDialog({
         await action(formData);
         setOpen(false);
         toast.success("Saved");
+        // `action` is called through this wrapper rather than bound directly as the
+        // form's `action` prop, so Next.js doesn't auto-refresh the current route's
+        // Server Components on completion — do it explicitly so revalidatePath() calls
+        // inside the action actually show up without a manual page reload.
+        router.refresh();
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Something went wrong");
       }

@@ -21,7 +21,7 @@ const jakarta = Plus_Jakarta_Sans({
 
 export const metadata: Metadata = {
   title: "iSN Compass",
-  description: "Strategy → Accountability → Execution",
+  description: "Initiative & task tracking for one Admin — no team-member logins required.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
