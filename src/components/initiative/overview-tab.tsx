@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { FormDialog } from "@/components/shared/form-dialog";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import {
   updateInitiativeAction,
   setInitiativeStatusAction,
@@ -32,7 +33,21 @@ export function OverviewTab({
   departments: { id: string; name: string }[];
 }) {
   const [pending, startTransition] = useTransition();
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const router = useRouter();
+
+  function handleDeleteConfirmed() {
+    startTransition(async () => {
+      try {
+        await deleteInitiativeAction(initiative.id);
+        toast.success("Deleted");
+        router.push("/initiatives");
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Failed");
+        setConfirmOpen(false);
+      }
+    });
+  }
 
   return (
     <div className="grid grid-cols-1 gap-4 py-4 lg:grid-cols-3">
@@ -86,26 +101,17 @@ export function OverviewTab({
           >
             {initiative.is_archived ? "Unarchive" : "Archive"}
           </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="text-destructive"
-            disabled={pending}
-            onClick={() => {
-              if (!window.confirm(`Permanently delete "${initiative.name}" and all its tasks? This can't be undone.`)) return;
-              startTransition(async () => {
-                try {
-                  await deleteInitiativeAction(initiative.id);
-                  toast.success("Deleted");
-                  router.push("/initiatives");
-                } catch (e) {
-                  toast.error(e instanceof Error ? e.message : "Failed");
-                }
-              });
-            }}
-          >
+          <Button size="sm" variant="outline" className="text-destructive" disabled={pending} onClick={() => setConfirmOpen(true)}>
             Delete Forever
           </Button>
+          <ConfirmDialog
+            open={confirmOpen}
+            onOpenChange={setConfirmOpen}
+            title="Delete initiative?"
+            description={`Permanently delete "${initiative.name}" and all its tasks. This can't be undone.`}
+            pending={pending}
+            onConfirm={handleDeleteConfirmed}
+          />
         </CardContent>
       </Card>
 

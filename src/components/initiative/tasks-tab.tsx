@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { FormDialog } from "@/components/shared/form-dialog";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import {
   createTaskAction,
   reassignTaskAction,
@@ -96,6 +97,7 @@ function TaskRowItem({
   members: { id: string; name: string }[];
 }) {
   const [pending, startTransition] = useTransition();
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const router = useRouter();
   const overdue = isTaskOverdue(task.due_date, task.status);
 
@@ -107,13 +109,10 @@ function TaskRowItem({
         router.refresh();
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Failed");
+      } finally {
+        setConfirmOpen(false);
       }
     });
-  }
-
-  function handleDelete() {
-    if (!window.confirm(`Permanently delete "${task.name}"? This can't be undone.`)) return;
-    run(() => deleteTaskAction(task.id, initiativeId), "Deleted");
   }
 
   return (
@@ -162,9 +161,17 @@ function TaskRowItem({
           Reopen
         </Button>
       )}
-      <Button size="sm" variant="outline" className="text-destructive" disabled={pending} onClick={handleDelete}>
+      <Button size="sm" variant="outline" className="text-destructive" disabled={pending} onClick={() => setConfirmOpen(true)}>
         Delete
       </Button>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Delete task?"
+        description={`Permanently delete "${task.name}". This can't be undone.`}
+        pending={pending}
+        onConfirm={() => run(() => deleteTaskAction(task.id, initiativeId), "Deleted")}
+      />
     </div>
   );
 }
