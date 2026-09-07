@@ -9,6 +9,7 @@ import {
   setTaskStatus,
   markTaskCompleted,
   reopenTask,
+  deleteTask,
 } from "@/server/services/tasks";
 import type { TaskPriority, TaskStatus } from "@/types/database";
 
@@ -68,6 +69,13 @@ export async function markTaskCompletedAction(taskId: string, initiativeId: stri
 export async function reopenTaskAction(taskId: string, initiativeId: string) {
   await requireUser();
   await reopenTask(taskId);
+  revalidatePath(`/initiatives/${initiativeId}`);
+  revalidatePath("/dashboard");
+}
+
+export async function deleteTaskAction(taskId: string, initiativeId: string) {
+  await requireUser();
+  await deleteTask(taskId);
   revalidatePath(`/initiatives/${initiativeId}`);
   revalidatePath("/dashboard");
 }

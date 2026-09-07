@@ -10,7 +10,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { FormDialog } from "@/components/shared/form-dialog";
-import { createTaskAction, reassignTaskAction, markTaskCompletedAction, reopenTaskAction } from "@/server/actions/tasks";
+import {
+  createTaskAction,
+  reassignTaskAction,
+  markTaskCompletedAction,
+  reopenTaskAction,
+  deleteTaskAction,
+} from "@/server/actions/tasks";
 import { TaskStatusBadge, PriorityBadge } from "@/components/shared/badges";
 import { isTaskOverdue } from "@/lib/utils";
 import type { Task, TaskPriority } from "@/types/database";
@@ -93,16 +99,21 @@ function TaskRowItem({
   const router = useRouter();
   const overdue = isTaskOverdue(task.due_date, task.status);
 
-  function run(fn: () => Promise<void>) {
+  function run(fn: () => Promise<void>, successMessage = "Updated") {
     startTransition(async () => {
       try {
         await fn();
-        toast.success("Updated");
+        toast.success(successMessage);
         router.refresh();
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Failed");
       }
     });
+  }
+
+  function handleDelete() {
+    if (!window.confirm(`Permanently delete "${task.name}"? This can't be undone.`)) return;
+    run(() => deleteTaskAction(task.id, initiativeId), "Deleted");
   }
 
   return (
@@ -151,6 +162,9 @@ function TaskRowItem({
           Reopen
         </Button>
       )}
+      <Button size="sm" variant="outline" className="text-destructive" disabled={pending} onClick={handleDelete}>
+        Delete
+      </Button>
     </div>
   );
 }

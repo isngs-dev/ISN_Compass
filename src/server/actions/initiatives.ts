@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/server/auth/session";
-import { createInitiative, updateInitiative, setInitiativeArchived } from "@/server/services/initiatives";
+import { createInitiative, updateInitiative, setInitiativeArchived, deleteInitiative } from "@/server/services/initiatives";
 import type { InitiativeStatus } from "@/types/database";
 
 export async function createInitiativeAction(formData: FormData) {
@@ -50,4 +50,11 @@ export async function unarchiveInitiativeAction(id: string) {
   await setInitiativeArchived(id, false);
   revalidatePath(`/initiatives/${id}`);
   revalidatePath("/initiatives");
+}
+
+export async function deleteInitiativeAction(id: string) {
+  await requireUser();
+  await deleteInitiative(id);
+  revalidatePath("/initiatives");
+  revalidatePath("/dashboard");
 }

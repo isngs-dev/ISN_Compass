@@ -15,6 +15,7 @@ import {
   setInitiativeStatusAction,
   archiveInitiativeAction,
   unarchiveInitiativeAction,
+  deleteInitiativeAction,
 } from "@/server/actions/initiatives";
 import type { Initiative, InitiativeStatus } from "@/types/database";
 
@@ -84,6 +85,26 @@ export function OverviewTab({
             }
           >
             {initiative.is_archived ? "Unarchive" : "Archive"}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="text-destructive"
+            disabled={pending}
+            onClick={() => {
+              if (!window.confirm(`Permanently delete "${initiative.name}" and all its tasks? This can't be undone.`)) return;
+              startTransition(async () => {
+                try {
+                  await deleteInitiativeAction(initiative.id);
+                  toast.success("Deleted");
+                  router.push("/initiatives");
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : "Failed");
+                }
+              });
+            }}
+          >
+            Delete Forever
           </Button>
         </CardContent>
       </Card>

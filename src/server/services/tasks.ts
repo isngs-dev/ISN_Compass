@@ -192,6 +192,13 @@ export async function reopenTask(id: string) {
   });
 }
 
+/** Permanent. */
+export async function deleteTask(id: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("tasks").delete().eq("id", id);
+  if (error) throw error;
+}
+
 // ---------------------------------------------------------------------------
 // Unauthenticated flows (confirm-completion link, reminder cron) — callers
 // pass the service-role client from src/lib/supabase/admin.ts.

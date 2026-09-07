@@ -111,3 +111,10 @@ export async function setInitiativeArchived(id: string, archived: boolean) {
     description: archived ? "Initiative archived" : "Initiative unarchived",
   });
 }
+
+/** Permanent — cascades to delete every task under it (FK on delete cascade). */
+export async function deleteInitiative(id: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("initiatives").delete().eq("id", id);
+  if (error) throw error;
+}
