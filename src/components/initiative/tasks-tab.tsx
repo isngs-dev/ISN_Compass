@@ -41,7 +41,6 @@ export function TasksTab({
       <div className="flex justify-end">
         <FormDialog triggerLabel="New Task" title="Create Task" submitLabel="Create" action={(fd) => createTaskAction(initiativeId, fd)}>
           <div className="flex flex-col gap-1.5"><Label htmlFor="name">Task Name</Label><Input id="name" name="name" required /></div>
-          <div className="flex flex-col gap-1.5"><Label htmlFor="description">Description</Label><Textarea id="description" name="description" rows={2} /></div>
           <div className="flex flex-col gap-1.5">
             <Label>Assign To</Label>
             <Select name="assigned_to" items={members.map((m) => ({ value: m.id, label: m.name }))}>
