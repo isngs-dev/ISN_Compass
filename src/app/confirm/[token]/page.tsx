@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { CheckCircle2, Compass, XCircle } from "lucide-react";
+import Image from "next/image";
+import { CheckCircle2, XCircle } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getTaskByConfirmationToken } from "@/server/services/tasks";
 import { confirmTaskAction } from "@/server/actions/confirm";
@@ -23,10 +24,8 @@ export default async function ConfirmTaskPage({
     <div className="flex min-h-screen flex-1 items-center justify-center px-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="items-center text-center">
-          <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Compass className="h-6 w-6" />
-          </div>
-          <CardTitle className="text-xl">iSN Compass</CardTitle>
+          <Image src="/isn-logo.png" alt="ISN" width={250} height={96} className="mb-2 h-10 w-auto" priority />
+          <CardTitle className="text-xl">Compass</CardTitle>
         </CardHeader>
         <CardContent>
           {!task ? (

@@ -1,4 +1,4 @@
-import { Compass } from "lucide-react";
+import Image from "next/image";
 import { signInAction } from "@/server/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,10 +17,8 @@ export default async function LoginPage({
     <div className="flex min-h-screen flex-1 items-center justify-center px-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="items-center text-center">
-          <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Compass className="h-6 w-6" />
-          </div>
-          <CardTitle className="text-xl">iSN Compass</CardTitle>
+          <Image src="/isn-logo.png" alt="ISN" width={250} height={96} className="mb-2 h-10 w-auto" priority />
+          <CardTitle className="text-xl">Compass</CardTitle>
           <CardDescription>Admin sign in</CardDescription>
         </CardHeader>
         <CardContent>
