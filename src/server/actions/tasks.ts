@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/server/auth/session";
+import { formString } from "@/lib/form";
 import {
   createTask,
   updateTask,
@@ -17,13 +18,13 @@ export async function createTaskAction(initiativeId: string, formData: FormData)
   await requireUser();
   await createTask({
     initiative_id: initiativeId,
-    name: String(formData.get("name")),
-    description: String(formData.get("description") ?? "") || undefined,
-    assigned_to: String(formData.get("assigned_to") ?? "") || undefined,
-    assignment_note: String(formData.get("assignment_note") ?? "") || undefined,
-    priority: (String(formData.get("priority")) || "medium") as TaskPriority,
-    start_date: String(formData.get("start_date") ?? "") || undefined,
-    due_date: String(formData.get("due_date") ?? "") || undefined,
+    name: formString(formData, "name") ?? "",
+    description: formString(formData, "description"),
+    assigned_to: formString(formData, "assigned_to"),
+    assignment_note: formString(formData, "assignment_note"),
+    priority: (formString(formData, "priority") ?? "medium") as TaskPriority,
+    start_date: formString(formData, "start_date"),
+    due_date: formString(formData, "due_date"),
   });
   revalidatePath(`/initiatives/${initiativeId}`);
   revalidatePath("/dashboard");
@@ -32,22 +33,20 @@ export async function createTaskAction(initiativeId: string, formData: FormData)
 export async function updateTaskAction(taskId: string, initiativeId: string, formData: FormData) {
   await requireUser();
   await updateTask(taskId, {
-    name: String(formData.get("name")),
-    description: String(formData.get("description") ?? "") || undefined,
-    priority: (String(formData.get("priority")) || undefined) as TaskPriority | undefined,
-    start_date: String(formData.get("start_date") ?? "") || null,
-    due_date: String(formData.get("due_date") ?? "") || null,
+    name: formString(formData, "name") ?? "",
+    description: formString(formData, "description"),
+    priority: formString(formData, "priority") as TaskPriority | undefined,
+    start_date: formString(formData, "start_date") ?? null,
+    due_date: formString(formData, "due_date") ?? null,
   });
   revalidatePath(`/initiatives/${initiativeId}`);
 }
 
 export async function reassignTaskAction(taskId: string, initiativeId: string, formData: FormData) {
   await requireUser();
-  await reassignTask(
-    taskId,
-    String(formData.get("assigned_to")),
-    String(formData.get("assignment_note") ?? "") || undefined
-  );
+  const assignedTo = formString(formData, "assigned_to");
+  if (!assignedTo) throw new Error("Choose a team member to assign this task to.");
+  await reassignTask(taskId, assignedTo, formString(formData, "assignment_note"));
   revalidatePath(`/initiatives/${initiativeId}`);
   revalidatePath("/dashboard");
 }

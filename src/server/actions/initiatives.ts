@@ -3,17 +3,20 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/server/auth/session";
+import { formString } from "@/lib/form";
 import { createInitiative, updateInitiative, setInitiativeArchived, deleteInitiative } from "@/server/services/initiatives";
 import type { InitiativeStatus } from "@/types/database";
 
 export async function createInitiativeAction(formData: FormData) {
   await requireUser();
+  const departmentId = formString(formData, "department_id");
+  if (!departmentId) throw new Error("Choose a department.");
   const initiative = await createInitiative({
-    name: String(formData.get("name")),
-    description: String(formData.get("description") ?? "") || undefined,
-    department_id: String(formData.get("department_id")),
-    start_date: String(formData.get("start_date") ?? "") || undefined,
-    target_date: String(formData.get("target_date") ?? "") || undefined,
+    name: formString(formData, "name") ?? "",
+    description: formString(formData, "description"),
+    department_id: departmentId,
+    start_date: formString(formData, "start_date"),
+    target_date: formString(formData, "target_date"),
   });
   revalidatePath("/initiatives");
   redirect(`/initiatives/${initiative.id}`);
@@ -21,12 +24,14 @@ export async function createInitiativeAction(formData: FormData) {
 
 export async function updateInitiativeAction(id: string, formData: FormData) {
   await requireUser();
+  const departmentId = formString(formData, "department_id");
+  if (!departmentId) throw new Error("Choose a department.");
   await updateInitiative(id, {
-    name: String(formData.get("name")),
-    description: String(formData.get("description") ?? "") || undefined,
-    department_id: String(formData.get("department_id")),
-    start_date: String(formData.get("start_date") ?? "") || null,
-    target_date: String(formData.get("target_date") ?? "") || null,
+    name: formString(formData, "name") ?? "",
+    description: formString(formData, "description"),
+    department_id: departmentId,
+    start_date: formString(formData, "start_date") ?? null,
+    target_date: formString(formData, "target_date") ?? null,
   });
   revalidatePath(`/initiatives/${id}`);
 }

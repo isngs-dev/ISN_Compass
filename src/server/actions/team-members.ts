@@ -2,14 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/server/auth/session";
+import { formString } from "@/lib/form";
 import { createTeamMember, updateTeamMember, deleteTeamMember } from "@/server/services/team-members";
 
 export async function createTeamMemberAction(formData: FormData) {
   await requireUser();
   await createTeamMember({
-    name: String(formData.get("name")),
-    email: String(formData.get("email")),
-    department_id: String(formData.get("department_id") ?? "") || undefined,
+    name: formString(formData, "name") ?? "",
+    email: formString(formData, "email") ?? "",
+    department_id: formString(formData, "department_id"),
   });
   revalidatePath("/team-members");
 }
@@ -17,9 +18,9 @@ export async function createTeamMemberAction(formData: FormData) {
 export async function updateTeamMemberAction(id: string, formData: FormData) {
   await requireUser();
   await updateTeamMember(id, {
-    name: String(formData.get("name")),
-    email: String(formData.get("email")),
-    department_id: String(formData.get("department_id") ?? "") || null,
+    name: formString(formData, "name") ?? "",
+    email: formString(formData, "email") ?? "",
+    department_id: formString(formData, "department_id") ?? null,
   });
   revalidatePath("/team-members");
 }
