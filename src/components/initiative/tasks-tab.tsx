@@ -13,6 +13,7 @@ import { FormDialog } from "@/components/shared/form-dialog";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import {
   createTaskAction,
+  updateTaskAction,
   reassignTaskAction,
   markTaskCompletedAction,
   reopenTaskAction,
@@ -126,6 +127,39 @@ function TaskRowItem({
       </div>
       <PriorityBadge priority={task.priority} className="hidden sm:inline-flex" />
       <TaskStatusBadge status={task.status} overdue={overdue} />
+
+      <FormDialog
+        triggerLabel="Edit"
+        title="Edit Task"
+        submitLabel="Save"
+        action={(fd) => updateTaskAction(task.id, initiativeId, fd)}
+      >
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`name-${task.id}`}>Task Name</Label>
+          <Input id={`name-${task.id}`} name="name" defaultValue={task.name} required />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={`start-${task.id}`}>Start Date</Label>
+            <Input id={`start-${task.id}`} name="start_date" type="date" defaultValue={task.start_date ?? ""} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={`due-${task.id}`}>Due Date</Label>
+            <Input id={`due-${task.id}`} name="due_date" type="date" defaultValue={task.due_date ?? ""} />
+          </div>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label>Priority</Label>
+          <Select name="priority" defaultValue={task.priority} items={PRIORITY_ITEMS}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="high">High</SelectItem>
+              <SelectItem value="medium">Medium</SelectItem>
+              <SelectItem value="low">Low</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </FormDialog>
 
       <FormDialog
         triggerLabel={task.assignee ? "Reassign" : "Assign"}
