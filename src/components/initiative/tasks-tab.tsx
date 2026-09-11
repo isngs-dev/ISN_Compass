@@ -49,6 +49,7 @@ export function TasksTab({
       <div className="flex justify-end">
         <FormDialog triggerLabel="New Task" title="Create Task" submitLabel="Create" action={(fd) => createTaskAction(initiativeId, fd)}>
           <div className="flex flex-col gap-1.5"><Label htmlFor="name">Task Name</Label><Input id="name" name="name" required /></div>
+          <div className="flex flex-col gap-1.5"><Label htmlFor="description">Description</Label><Textarea id="description" name="description" rows={2} /></div>
           <div className="flex flex-col gap-1.5">
             <Label>Assign To</Label>
             <Select name="assigned_to" items={members.map((m) => ({ value: m.id, label: m.name }))}>
@@ -124,6 +125,7 @@ function TaskRowItem({
           {task.assignee?.name ?? "Unassigned"}
           {task.due_date ? ` · Due ${task.due_date}` : ""}
         </div>
+        {task.description && <div className="truncate text-xs text-muted-foreground/80">{task.description}</div>}
       </div>
       <PriorityBadge priority={task.priority} className="hidden sm:inline-flex" />
       <TaskStatusBadge status={task.status} overdue={overdue} />
@@ -137,6 +139,10 @@ function TaskRowItem({
         <div className="flex flex-col gap-1.5">
           <Label htmlFor={`name-${task.id}`}>Task Name</Label>
           <Input id={`name-${task.id}`} name="name" defaultValue={task.name} required />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`description-${task.id}`}>Description</Label>
+          <Textarea id={`description-${task.id}`} name="description" rows={2} defaultValue={task.description ?? ""} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1.5">
