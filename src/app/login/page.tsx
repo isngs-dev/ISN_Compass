@@ -17,7 +17,7 @@ export default async function LoginPage({
     <div className="flex min-h-screen flex-1 items-center justify-center px-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="items-center text-center">
-          <Image src="/isn-logo.png" alt="ISN" width={250} height={96} className="mb-2 h-10 w-auto" priority />
+          <Image src="/isn-logo.png" alt="ISN" width={250} height={96} className="mx-auto mb-2 h-10 w-auto" priority />
           <CardTitle className="text-xl">Compass</CardTitle>
           <CardDescription>Admin sign in</CardDescription>
         </CardHeader>
