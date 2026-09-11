@@ -115,31 +115,26 @@ export function OverviewTab({
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader><CardTitle className="text-base">Edit</CardTitle></CardHeader>
-        <CardContent>
-          <FormDialog triggerLabel="Edit Initiative" title="Edit Initiative" submitLabel="Save" action={(fd) => updateInitiativeAction(initiative.id, fd)}>
-            <div className="flex flex-col gap-1.5"><Label htmlFor="name">Name</Label><Input id="name" name="name" defaultValue={initiative.name} required /></div>
-            <div className="flex flex-col gap-1.5"><Label htmlFor="description">Description</Label><Textarea id="description" name="description" rows={3} defaultValue={initiative.description ?? ""} /></div>
-            <div className="flex flex-col gap-1.5">
-              <Label>Department</Label>
-              <Select
-                name="department_id"
-                defaultValue={initiative.department_id}
-                items={departments.map((d) => ({ value: d.id, label: d.name }))}
-                required
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1.5"><Label htmlFor="start_date">Start Date</Label><Input id="start_date" name="start_date" type="date" defaultValue={initiative.start_date ?? ""} /></div>
-              <div className="flex flex-col gap-1.5"><Label htmlFor="target_date">Target Date</Label><Input id="target_date" name="target_date" type="date" defaultValue={initiative.target_date ?? ""} /></div>
-            </div>
-          </FormDialog>
-        </CardContent>
-      </Card>
+      <FormDialog triggerLabel="Edit Initiative" title="Edit Initiative" submitLabel="Save" action={(fd) => updateInitiativeAction(initiative.id, fd)}>
+        <div className="flex flex-col gap-1.5"><Label htmlFor="name">Name</Label><Input id="name" name="name" defaultValue={initiative.name} required /></div>
+        <div className="flex flex-col gap-1.5"><Label htmlFor="description">Description</Label><Textarea id="description" name="description" rows={3} defaultValue={initiative.description ?? ""} /></div>
+        <div className="flex flex-col gap-1.5">
+          <Label>Department</Label>
+          <Select
+            name="department_id"
+            defaultValue={initiative.department_id}
+            items={departments.map((d) => ({ value: d.id, label: d.name }))}
+            required
+          >
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>{departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="flex flex-col gap-1.5"><Label htmlFor="start_date">Start Date</Label><Input id="start_date" name="start_date" type="date" defaultValue={initiative.start_date ?? ""} /></div>
+          <div className="flex flex-col gap-1.5"><Label htmlFor="target_date">Target Date</Label><Input id="target_date" name="target_date" type="date" defaultValue={initiative.target_date ?? ""} /></div>
+        </div>
+      </FormDialog>
     </div>
   );
 }
