@@ -1,4 +1,6 @@
 import Image from "next/image";
+import Link from "next/link";
+import { Bell } from "lucide-react";
 import { NavLinks } from "@/components/shared/nav-links";
 import { UserMenu } from "@/components/shared/user-menu";
 import type { SessionUser } from "@/server/auth/session";
@@ -16,7 +18,14 @@ export function AppShell({ user, children }: { user: SessionUser; children: Reac
       </aside>
 
       <div className="flex min-h-screen flex-1 flex-col">
-        <header className="flex h-14 items-center justify-end border-b bg-background px-4">
+        <header className="flex h-14 items-center justify-end gap-3 border-b bg-background px-4">
+          <Link
+            href="/activity"
+            aria-label="Activity"
+            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <Bell className="h-4 w-4" />
+          </Link>
           <UserMenu email={user.email} />
         </header>
         <main className="flex-1 overflow-y-auto p-6">{children}</main>

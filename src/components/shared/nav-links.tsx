@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Rocket, Building2, Users, History, type LucideIcon } from "lucide-react";
+import { LayoutDashboard, Rocket, Building2, Users, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface NavItem {
@@ -19,7 +19,6 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/initiatives", label: "Initiatives", icon: Rocket },
   { href: "/departments", label: "Departments", icon: Building2 },
   { href: "/team-members", label: "Team Members", icon: Users },
-  { href: "/activity", label: "Activity", icon: History },
 ];
 
 export function NavLinks() {

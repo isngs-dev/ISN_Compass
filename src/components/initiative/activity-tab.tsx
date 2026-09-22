@@ -14,6 +14,7 @@ const ACTION_LABELS: Record<string, string> = {
   completion_confirmation_received: "Completion confirmed",
   task_marked_completed: "Marked completed",
   task_reopened: "Task reopened",
+  task_note_added: "Note",
 };
 
 export function ActivityTab({ entries }: { entries: ActivityLogEntry[] }) {

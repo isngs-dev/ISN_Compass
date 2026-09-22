@@ -6,12 +6,14 @@ import { formString } from "@/lib/form";
 import {
   createTask,
   updateTask,
+  addTaskNote,
   reassignTask,
   setTaskStatus,
   markTaskCompleted,
   reopenTask,
   deleteTask,
 } from "@/server/services/tasks";
+import { listActivityForEntity } from "@/server/services/activity";
 import type { TaskPriority, TaskStatus } from "@/types/database";
 
 export async function createTaskAction(initiativeId: string, formData: FormData) {
@@ -39,7 +41,15 @@ export async function updateTaskAction(taskId: string, initiativeId: string, for
     start_date: formString(formData, "start_date") ?? null,
     due_date: formString(formData, "due_date") ?? null,
   });
+
+  const status = formString(formData, "status") as TaskStatus | undefined;
+  if (status) await setTaskStatus(taskId, status);
+
+  const note = formString(formData, "note");
+  if (note) await addTaskNote(taskId, note);
+
   revalidatePath(`/initiatives/${initiativeId}`);
+  revalidatePath("/dashboard");
 }
 
 export async function reassignTaskAction(taskId: string, initiativeId: string, formData: FormData) {
@@ -77,4 +87,9 @@ export async function deleteTaskAction(taskId: string, initiativeId: string) {
   await deleteTask(taskId);
   revalidatePath(`/initiatives/${initiativeId}`);
   revalidatePath("/dashboard");
+}
+
+export async function getTaskActivityAction(taskId: string) {
+  await requireUser();
+  return listActivityForEntity("task", taskId);
 }

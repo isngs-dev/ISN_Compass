@@ -11,10 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { FormDialog } from "@/components/shared/form-dialog";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { TaskDetailDialog } from "@/components/initiative/task-detail-dialog";
 import {
   createTaskAction,
-  updateTaskAction,
-  reassignTaskAction,
   markTaskCompletedAction,
   reopenTaskAction,
   deleteTaskAction,
@@ -100,6 +99,7 @@ function TaskRowItem({
 }) {
   const [pending, startTransition] = useTransition();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
   const router = useRouter();
   const overdue = isTaskOverdue(task.due_date, task.status);
 
@@ -117,93 +117,62 @@ function TaskRowItem({
     });
   }
 
+  // Buttons that stay inline still live inside the clickable row, so each one
+  // stops propagation to avoid also opening the detail preview.
+  function stop<T extends { stopPropagation: () => void }>(handler: () => void) {
+    return (e: T) => {
+      e.stopPropagation();
+      handler();
+    };
+  }
+
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-md px-3 py-2.5 hover:bg-muted">
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium">{task.name}</div>
-        <div className="text-xs text-muted-foreground">
-          {task.assignee?.name ?? "Unassigned"}
-          {task.due_date ? ` · Due ${task.due_date}` : ""}
-        </div>
-        {task.description && <div className="truncate text-xs text-muted-foreground/80">{task.description}</div>}
-      </div>
-      <PriorityBadge priority={task.priority} className="hidden sm:inline-flex" />
-      <TaskStatusBadge status={task.status} overdue={overdue} />
-
-      <FormDialog
-        triggerLabel="Edit"
-        title="Edit Task"
-        submitLabel="Save"
-        action={(fd) => updateTaskAction(task.id, initiativeId, fd)}
+    <>
+      <div
+        className="flex flex-wrap items-center gap-3 rounded-md px-3 py-2.5 hover:bg-muted cursor-pointer"
+        onClick={() => setDetailOpen(true)}
       >
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor={`name-${task.id}`}>Task Name</Label>
-          <Input id={`name-${task.id}`} name="name" defaultValue={task.name} required />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor={`description-${task.id}`}>Description</Label>
-          <Textarea id={`description-${task.id}`} name="description" rows={2} defaultValue={task.description ?? ""} />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor={`start-${task.id}`}>Start Date</Label>
-            <Input id={`start-${task.id}`} name="start_date" type="date" defaultValue={task.start_date ?? ""} />
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-medium">{task.name}</div>
+          <div className="text-xs text-muted-foreground">
+            {task.assignee?.name ?? "Unassigned"}
+            {task.due_date ? ` · Due ${task.due_date}` : ""}
           </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor={`due-${task.id}`}>Due Date</Label>
-            <Input id={`due-${task.id}`} name="due_date" type="date" defaultValue={task.due_date ?? ""} />
-          </div>
+          {task.description && <div className="truncate text-xs text-muted-foreground/80">{task.description}</div>}
         </div>
-        <div className="flex flex-col gap-1.5">
-          <Label>Priority</Label>
-          <Select name="priority" defaultValue={task.priority} items={PRIORITY_ITEMS}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="high">High</SelectItem>
-              <SelectItem value="medium">Medium</SelectItem>
-              <SelectItem value="low">Low</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </FormDialog>
+        <PriorityBadge priority={task.priority} className="hidden sm:inline-flex" />
+        <TaskStatusBadge status={task.status} overdue={overdue} />
 
-      <FormDialog
-        triggerLabel={task.assignee ? "Reassign" : "Assign"}
-        title="Assign Task"
-        submitLabel="Assign"
-        action={(fd) => reassignTaskAction(task.id, initiativeId, fd)}
-      >
-        <div className="flex flex-col gap-1.5">
-          <Label>Team Member</Label>
-          <Select
-            name="assigned_to"
-            defaultValue={task.assigned_to ?? undefined}
-            items={members.map((m) => ({ value: m.id, label: m.name }))}
-            required
+        {task.status === "completion_confirmed" && (
+          <Button
+            size="sm"
+            disabled={pending}
+            onClick={stop(() => run(() => markTaskCompletedAction(task.id, initiativeId)))}
           >
-            <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-            <SelectContent>{members.map((m) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}</SelectContent>
-          </Select>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor={`note-${task.id}`}>Instructions</Label>
-          <Textarea id={`note-${task.id}`} name="assignment_note" rows={2} defaultValue={task.assignment_note ?? ""} />
-        </div>
-      </FormDialog>
+            Mark Completed
+          </Button>
+        )}
+        {(task.status === "completion_confirmed" || task.status === "completed") && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={pending}
+            onClick={stop(() => run(() => reopenTaskAction(task.id, initiativeId)))}
+          >
+            Reopen
+          </Button>
+        )}
+        <Button
+          size="sm"
+          variant="outline"
+          className="text-destructive"
+          disabled={pending}
+          onClick={stop(() => setConfirmOpen(true))}
+        >
+          Delete
+        </Button>
+      </div>
 
-      {task.status === "completion_confirmed" && (
-        <Button size="sm" disabled={pending} onClick={() => run(() => markTaskCompletedAction(task.id, initiativeId))}>
-          Mark Completed
-        </Button>
-      )}
-      {(task.status === "completion_confirmed" || task.status === "completed") && (
-        <Button size="sm" variant="outline" disabled={pending} onClick={() => run(() => reopenTaskAction(task.id, initiativeId))}>
-          Reopen
-        </Button>
-      )}
-      <Button size="sm" variant="outline" className="text-destructive" disabled={pending} onClick={() => setConfirmOpen(true)}>
-        Delete
-      </Button>
       <ConfirmDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
@@ -212,6 +181,14 @@ function TaskRowItem({
         pending={pending}
         onConfirm={() => run(() => deleteTaskAction(task.id, initiativeId), "Deleted")}
       />
-    </div>
+
+      <TaskDetailDialog
+        task={task}
+        initiativeId={initiativeId}
+        members={members}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+      />
+    </>
   );
 }

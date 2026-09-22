@@ -39,22 +39,6 @@ export async function getInitiativeTasks(initiativeId: string) {
   return data ?? [];
 }
 
-/** Activity for the initiative itself plus every task under it. */
-export async function getInitiativeActivity(initiativeId: string) {
-  const supabase = await createClient();
-  const { data: tasks } = await supabase.from("tasks").select("id").eq("initiative_id", initiativeId);
-  const taskIds = (tasks ?? []).map((t) => t.id);
-
-  const orFilter = [`entity_id.eq.${initiativeId}`, ...taskIds.map((id) => `entity_id.eq.${id}`)].join(",");
-  const { data, error } = await supabase
-    .from("activity_log")
-    .select("*")
-    .or(orFilter)
-    .order("created_at", { ascending: false });
-  if (error) throw error;
-  return data ?? [];
-}
-
 export interface CreateInitiativeInput {
   name: string;
   description?: string;

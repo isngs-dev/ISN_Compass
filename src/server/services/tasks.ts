@@ -115,6 +115,17 @@ export async function updateTask(
   if (error) throw error;
 }
 
+/** A free-text note appended to the task's activity history — no dedicated notes table. */
+export async function addTaskNote(id: string, note: string) {
+  const supabase = await createClient();
+  await logActivity(supabase, {
+    entity_type: "task",
+    entity_id: id,
+    action: "task_note_added",
+    description: note,
+  });
+}
+
 /** Assign or reassign — regenerates the confirmation token so a stale email link can't confirm the new run. */
 export async function reassignTask(id: string, assignedTo: string, note?: string) {
   const supabase = await createClient();

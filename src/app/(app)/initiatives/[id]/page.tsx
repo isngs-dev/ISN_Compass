@@ -1,21 +1,19 @@
 import { notFound } from "next/navigation";
-import { getInitiative, getInitiativeTasks, getInitiativeActivity } from "@/server/services/initiatives";
+import { getInitiative, getInitiativeTasks } from "@/server/services/initiatives";
 import { listDepartments } from "@/server/services/departments";
 import { listTeamMembers } from "@/server/services/team-members";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { InitiativeStatusBadge } from "@/components/shared/badges";
 import { OverviewTab } from "@/components/initiative/overview-tab";
 import { TasksTab } from "@/components/initiative/tasks-tab";
-import { ActivityTab } from "@/components/initiative/activity-tab";
 
 export default async function InitiativeDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const initiative = await getInitiative(id).catch(() => null);
   if (!initiative) notFound();
 
-  const [tasks, activity, departments, members] = await Promise.all([
+  const [tasks, departments, members] = await Promise.all([
     getInitiativeTasks(id),
-    getInitiativeActivity(id),
     listDepartments(),
     listTeamMembers(),
   ]);
@@ -51,16 +49,12 @@ export default async function InitiativeDetailPage({ params }: { params: Promise
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="tasks">Tasks ({tasks.length})</TabsTrigger>
-          <TabsTrigger value="activity">Activity</TabsTrigger>
         </TabsList>
         <TabsContent value="overview">
           <OverviewTab initiative={initiative} departments={departments} />
         </TabsContent>
         <TabsContent value="tasks">
           <TasksTab initiativeId={id} tasks={tasks} members={members} />
-        </TabsContent>
-        <TabsContent value="activity">
-          <ActivityTab entries={activity} />
         </TabsContent>
       </Tabs>
     </div>
