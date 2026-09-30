@@ -12,8 +12,9 @@ type TaskWithRelations = Database["public"]["Tables"]["tasks"]["Row"] & {
   initiative: { id: string; name: string } | null;
 };
 
-export async function getTask(id: string) {
-  const supabase = await createClient();
+/** Pass the service-role client for member flows (members have no RLS access). */
+export async function getTask(id: string, supabase?: SupabaseClient<Database>) {
+  supabase ??= await createClient();
   const { data, error } = await supabase.from("tasks").select(TASK_SELECT).eq("id", id).single();
   if (error) throw error;
   return data as unknown as TaskWithRelations;

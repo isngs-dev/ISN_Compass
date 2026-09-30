@@ -3,5 +3,5 @@ import { getCurrentUser } from "@/server/auth/session";
 
 export default async function Home() {
   const user = await getCurrentUser();
-  redirect(user ? "/dashboard" : "/login");
+  redirect(!user ? "/login" : user.role === "admin" ? "/dashboard" : "/my-tasks");
 }

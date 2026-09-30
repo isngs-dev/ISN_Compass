@@ -1,7 +1,7 @@
 # iSN Compass — System Architecture
 
-A single-admin initiative & task tracker. Team members are never given accounts;
-they interact only through email.
+A single-admin initiative & task tracker. Team members interact through email and,
+optionally, a login the Admin creates for them that shows only their own tasks.
 
 ## A. System Architecture
 
@@ -27,8 +27,8 @@ they interact only through email.
 ```
 
 Key decisions:
-- **Single tenant, single Admin.** No organizations table, no roles/permissions. RLS policy on every table is just "the authenticated user" — there is only ever one, the Admin.
-- **Team members are a directory, not accounts.** `team_members` holds name/email/department only; they never authenticate. All interaction is via outbound email + a token-based, no-login confirmation link.
+- **Single tenant, single Admin.** No organizations table. The Admin is the auth user with `app_metadata.role = 'admin'`; RLS on every table is `is_admin()` (migration `0006`).
+- **Team members are a directory, with optional logins.** `team_members` holds name/email/department, plus `username`/`user_id` once the Admin creates a login (`app_metadata.role = 'member'`, service role only). Members get **no** RLS access: `/my-tasks` and `completeMyTaskAction` use the service-role client scoped to the member's own `team_members` row (`requireMember()` in `src/server/auth/session.ts`). Admin actions/pages call `requireAdmin()`.
 - **Service layer (`src/server/services/*`)** wraps all reads/writes with typed functions; server actions in `src/server/actions/*` call them and are the only write path from the UI.
 - **Two write paths bypass session auth on purpose**, both via the service-role client (`src/lib/supabase/admin.ts`):
   - `src/app/confirm/[token]/page.tsx` — validates a per-task `confirmation_token` before writing.

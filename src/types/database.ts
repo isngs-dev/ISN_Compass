@@ -25,6 +25,8 @@ export type TeamMember = {
   email: string;
   department_id: string | null;
   is_active: boolean;
+  username: string | null;
+  user_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -95,6 +97,8 @@ export type Database = {
           email: string;
           department_id?: string | null;
           is_active?: boolean;
+          username?: string | null;
+          user_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };

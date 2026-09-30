@@ -21,7 +21,9 @@ otherwise).
    - `CRON_SECRET` — any random string; whatever calls `/api/cron/reminders` on a schedule (Vercel Cron, or a Render Cron Job) must send it as `Authorization: Bearer <value>`.
    - `NEXT_PUBLIC_SITE_URL` — the deployed app's URL (used to build links inside emails).
 3. Apply the database schema in `supabase/migrations/` against your Supabase project (via the SQL Editor, or `psql "$DATABASE_URL" -f supabase/migrations/<file>.sql` for each file in order).
-4. Create the one Admin account in Supabase: Dashboard > Authentication > Users > Add user (email + password). There's no self-serve signup by design.
+4. Create the one Admin account in Supabase: Dashboard > Authentication > Users > Add user (email + password). There's no self-serve signup by design. If you create it *after* applying migration `0006`, mark it as the Admin in the SQL Editor:
+   `update auth.users set raw_app_meta_data = raw_app_meta_data || '{"role":"admin"}' where email = 'you@company.com';`
+   (Migration `0006` does this automatically for any account that already exists.)
 5. Optionally seed demo data: `pnpm seed` (requires the service role key; does not create the Admin login).
 6. `pnpm dev` and sign in at `/login`.
 
@@ -35,6 +37,11 @@ otherwise).
 - When the team member clicks the link, the task is marked Completed directly and
   the Admin gets an email; the Admin can still reopen it from the dashboard if that
   turns out to be wrong.
+- From a team member's page, the Admin can **Create Login** (username + password).
+  The member signs in at `/login` with that username and lands on `/my-tasks`,
+  which shows only their tasks; **Mark as Completed** there works like the email
+  link (task completed, Admin emailed). Revoking the login, or deactivating the
+  member, removes their access.
 - Every significant action is recorded in the Activity log.
 
 ## Deploying

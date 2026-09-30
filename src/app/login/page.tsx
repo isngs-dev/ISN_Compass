@@ -19,7 +19,7 @@ export default async function LoginPage({
         <CardHeader className="items-center text-center">
           <Image src="/isn-logo.png" alt="ISN" width={250} height={96} className="mx-auto mb-2 h-10 w-auto" priority />
           <CardTitle className="text-xl">Compass</CardTitle>
-          <CardDescription>Admin sign in</CardDescription>
+          <CardDescription>Sign in</CardDescription>
         </CardHeader>
         <CardContent>
           <form action={signInAction} data-login-form className="flex flex-col gap-4">
@@ -30,8 +30,8 @@ export default async function LoginPage({
               </Alert>
             )}
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" name="email" type="email" placeholder="you@company.com" required autoFocus />
+              <Label htmlFor="email">Email or username</Label>
+              <Input id="email" name="email" autoComplete="username" required autoFocus />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="password">Password</Label>

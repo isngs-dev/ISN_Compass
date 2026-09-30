@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireUser } from "@/server/auth/session";
+import { requireAdmin } from "@/server/auth/session";
 import { formString } from "@/lib/form";
 import {
   createTask,
@@ -17,7 +17,7 @@ import { listActivityForEntity } from "@/server/services/activity";
 import type { TaskPriority, TaskStatus } from "@/types/database";
 
 export async function createTaskAction(initiativeId: string, formData: FormData) {
-  await requireUser();
+  await requireAdmin();
   await createTask({
     initiative_id: initiativeId,
     name: formString(formData, "name") ?? "",
@@ -33,7 +33,7 @@ export async function createTaskAction(initiativeId: string, formData: FormData)
 }
 
 export async function updateTaskAction(taskId: string, initiativeId: string, formData: FormData) {
-  await requireUser();
+  await requireAdmin();
   await updateTask(taskId, {
     name: formString(formData, "name") ?? "",
     description: formString(formData, "description"),
@@ -53,7 +53,7 @@ export async function updateTaskAction(taskId: string, initiativeId: string, for
 }
 
 export async function reassignTaskAction(taskId: string, initiativeId: string, formData: FormData) {
-  await requireUser();
+  await requireAdmin();
   const assignedTo = formString(formData, "assigned_to");
   if (!assignedTo) throw new Error("Choose a team member to assign this task to.");
   await reassignTask(taskId, assignedTo, formString(formData, "assignment_note"));
@@ -62,34 +62,34 @@ export async function reassignTaskAction(taskId: string, initiativeId: string, f
 }
 
 export async function setTaskStatusAction(taskId: string, initiativeId: string, status: TaskStatus) {
-  await requireUser();
+  await requireAdmin();
   await setTaskStatus(taskId, status);
   revalidatePath(`/initiatives/${initiativeId}`);
   revalidatePath("/dashboard");
 }
 
 export async function markTaskCompletedAction(taskId: string, initiativeId: string) {
-  await requireUser();
+  await requireAdmin();
   await markTaskCompleted(taskId);
   revalidatePath(`/initiatives/${initiativeId}`);
   revalidatePath("/dashboard");
 }
 
 export async function reopenTaskAction(taskId: string, initiativeId: string) {
-  await requireUser();
+  await requireAdmin();
   await reopenTask(taskId);
   revalidatePath(`/initiatives/${initiativeId}`);
   revalidatePath("/dashboard");
 }
 
 export async function deleteTaskAction(taskId: string, initiativeId: string) {
-  await requireUser();
+  await requireAdmin();
   await deleteTask(taskId);
   revalidatePath(`/initiatives/${initiativeId}`);
   revalidatePath("/dashboard");
 }
 
 export async function getTaskActivityAction(taskId: string) {
-  await requireUser();
+  await requireAdmin();
   return listActivityForEntity("task", taskId);
 }
